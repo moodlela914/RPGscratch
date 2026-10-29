@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>紅焰教學：Bug 魔王討伐戰</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --pixel-border: 4px solid #1a1a1a;
+            --bg-color: #2b2b2b;
+            --primary-red: #D92525;
+            --primary-blue: #005C8A;
+            --primary-yellow: #F2C12E;
+        }
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: var(--bg-color);
+            color: #f4f4f4;
+            user-select: none;
+        }
+        .font-pixel {
+            font-family: 'Press Start 2P', 'Noto Sans TC', cursive;
+        }
+        .pixel-box {
+            background: #fff;
+            color: #1a1a1a;
+            border: var(--pixel-border);
+            box-shadow: 6px 6px 0px rgba(0,0,0,0.5);
+        }
+        .pixel-btn {
+            border: var(--pixel-border);
+            transition: all 0.1s;
+            cursor: pointer;
+        }
+        .pixel-btn:active {
+            transform: translate(4px, 4px);
+            box-shadow: none !important;
+        }
+        .pixel-btn-blue {
+            background-color: var(--primary-blue);
+            color: white;
+            box-shadow: 4px 4px 0px #003652;
+        }
+        .pixel-btn-red {
+            background-color: var(--primary-red);
+            color: white;
+            box-shadow: 4px 4px 0px #821010;
+        }
+        .pixel-btn-yellow {
+            background-color: var(--primary-yellow);
+            color: #1a1a1a;
+            box-shadow: 4px 4px 0px #9e7b15;
+        }
+        /* 閃爍動畫 */
+        @keyframes damageFlash {
+            0% { filter: brightness(1) invert(0); }
+            50% { filter: brightness(2) invert(1); transform: translateX(-10px); }
+            100% { filter: brightness(1) invert(0); transform: translateX(0); }
+        }
+        .damage-anim { animation: damageFlash 0.3s ease-in-out; }
+        
+        /* 隱藏捲軸 */
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="h-screen w-full flex flex-col items-center justify-center overflow-hidden relative">
+
+    <!-- 畫面一：開始畫面 -->
+    <div id="screen-start" class="w-full max-w-4xl p-6 text-center flex flex-col items-center" style="display: block;">
+        <div class="pixel-box p-8 w-full max-w-2xl bg-gray-100 rounded-lg">
+            <h2 class="text-xl font-bold mb-2 text-gray-500">紅焰教學 榮譽出品</h2>
+            <h1 class="text-3xl md:text-5xl font-pixel text-red-600 mb-6 leading-tight">Bug 魔王討伐戰<br><span class="text-2xl text-blue-700">Scratch 勇者傳說</span></h1>
+            <p class="text-lg text-gray-700 mb-8 font-bold">運用程式邏輯魔法，擊敗阻礙遊戲運行的 Bug 魔物！</p>
+            <button onclick="startGame()" class="pixel-btn pixel-btn-red font-pixel text-xl py-4 px-8 rounded">START GAME</button>
+        </div>
+    </div>
+
+    <!-- 畫面二：戰鬥主畫面 -->
+    <div id="screen-battle" class="w-full max-w-5xl h-full flex flex-col p-2 md:p-6" style="display: none;">
+        
+        <!-- HUD 狀態列 -->
+        <div class="flex justify-between items-center bg-gray-800 p-3 border-4 border-gray-900 rounded mb-4">
+            <div class="flex flex-col w-1/3">
+                <span class="font-pixel text-sm text-yellow-400 mb-1">勇者 HP</span>
+                <div class="w-full bg-red-900 h-4 border-2 border-white"><div id="player-hp-bar" class="bg-green-500 h-full transition-all duration-300" style="width: 100%;"></div></div>
+            </div>
+            <div class="font-pixel text-center">
+                <div class="text-sm">連擊: <span id="combo-count" class="text-yellow-400 text-lg">0</span></div>
+                <div class="text-xs text-gray-400 mt-1">Stage <span id="stage-count">1</span>/4</div>
+            </div>
+            <div class="flex flex-col w-1/3 items-end">
+                <span class="font-pixel text-sm text-red-400 mb-1">Bug 魔王 HP</span>
+                <div class="w-full bg-red-900 h-4 border-2 border-white flex justify-end"><div id="enemy-hp-bar" class="bg-red-500 h-full transition-all duration-300" style="width: 100%;"></div></div>
+            </div>
+        </div>
+
+        <!-- 戰鬥視角區 -->
+        <div class="flex-grow flex items-center justify-between bg-gray-900 border-4 border-gray-600 rounded mb-4 relative overflow-hidden">
+            <!-- 勇者 -->
+            <div class="w-1/4 flex justify-center z-10" id="player-sprite">
+                <img src="https://api.dicebear.com/7.x/pixel-art/svg?seed=Hero&backgroundColor=transparent" alt="Hero" class="w-24 md:w-32 drop-shadow-xl transform scale-x-[-1]">
+            </div>
+            <!-- 中央情境圖 (含保底 SVG) -->
+            <div class="w-2/4 flex justify-center p-2 z-0">
+                <img id="scene-image" src="" alt="Scene" class="max-h-48 md:max-h-64 object-cover border-4 border-white shadow-2xl rounded" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'200\' height=\'200\'><rect width=\'200\' height=\'200\' fill=\'#333\'/><text x=\'50%\' y=\'50%\' fill=\'#fff\' font-family=\'sans-serif\' font-size=\'16\' text-anchor=\'middle\'>載入圖象</text></svg>'">
+            </div>
+            <!-- 魔王 -->
+            <div class="w-1/4 flex justify-center z-10" id="enemy-sprite">
+                <img src="https://api.dicebear.com/7.x/pixel-art/svg?seed=BugMonster&backgroundColor=transparent" alt="Monster" class="w-24 md:w-32 drop-shadow-xl">
+            </div>
+        </div>
+
+        <!-- 題目與對話框 -->
+        <div class="pixel-box p-4 md:p-6 mb-4 relative">
+            <h3 id="question-title" class="font-pixel text-sm text-blue-800 mb-2">【題目載入中】</h3>
+            <p id="question-text" class="text-lg md:text-xl font-bold leading-relaxed">...</p>
+            
+            <!-- 鷹架提示區 (預設隱藏) -->
+            <div id="scaffold-area" class="mt-4 bg-yellow-100 p-4 border-l-8 border-yellow-500 text-gray-800" style="display: none;">
+                <h4 class="font-bold text-red-600 mb-1">⚠️ 系統反擊！發現迷思概念：</h4>
+                <p id="hint-text" class="font-bold">提示載入中...</p>
+                <div class="mt-3 flex justify-end">
+                    <button id="btn-next-hint" onclick="showNextHint()" class="pixel-btn pixel-btn-yellow text-xs px-3 py-2">下一個提示 ➔</button>
+                    <button id="btn-retry" onclick="closeScaffold()" class="pixel-btn pixel-btn-blue text-xs px-3 py-2 ml-2" style="display: none;">重新挑戰</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 選項按鈕區 -->
+        <div id="options-grid" class="grid grid-cols-1 md:grid-cols-2 gap-3 pb-4">
+            <!-- JS 動態生成按鈕 -->
+        </div>
+    </div>
+
+    <!-- 畫面三：結算畫面 -->
+    <div id="screen-result" class="w-full max-w-2xl p-6 text-center" style="display: none;">
+        <div class="pixel-box p-8 rounded-lg">
+            <h1 id="result-title" class="text-4xl font-pixel mb-6"></h1>
+            <p id="result-desc" class="text-xl font-bold mb-6 text-gray-700"></p>
+            <div class="bg-gray-100 p-4 rounded text-left mb-6 border-2 border-gray-300">
+                <h3 class="font-bold text-lg mb-2 text-blue-800">📊 知識點精熟度報告：</h3>
+                <ul id="report-list" class="space-y-2 text-gray-800 font-bold"></ul>
+            </div>
+            <button onclick="location.reload()" class="pixel-btn pixel-btn-blue font-pixel text-lg py-3 px-6 rounded">返回標題</button>
+        </div>
+    </div>
+
+    <script>
+        // --- 核心資料區 ---
+        const questions = [
+            {
+                title: "【巡邏史萊姆】",
+                text: "你要讓角色碰到邊緣就反彈，並且「一直持續」走動，應該把移動積木放進哪個控制積木裡？",
+                imgQuery: "8-bit style slime monster walking continuously pixel art",
+                options: ["【重複執行】", "【重複直到】", "【重複 10 次】", "直接放不用迴圈"],
+                answerIndex: 0,
+                hints: [
+                    "Hint 1：巡邏是永遠不會停的動作喔！",
+                    "Hint 2：「重複直到」需要條件滿足才會停，我們現在不需要停下來。",
+                    "解析：使用無條件的「重複執行」，角色才會持續移動。"
+                ],
+                concept: "迴圈應用"
+            },
+            {
+                title: "【幽靈重複計分】",
+                text: "勇者碰到星星得分，但分數卻瞬間狂飆！檢查程式碼，最有可能是哪個條件判斷沒寫好？",
+                imgQuery: "8-bit style glitching coin counter bursting pixel art",
+                options: ["條件沒放進迴圈", "忘記設定起始分數", "【得分後沒讓星星消失或等待】", "把如果碰到星星寫反了"],
+                answerIndex: 2,
+                hints: [
+                    "Hint 1：電腦執行速度極快，一秒鐘會檢查好幾十次。",
+                    "Hint 2：如果星星還在身上，下一個瞬間又會被算一次分數。",
+                    "解析：必須加入「隱藏/刪除分身」或「等待」，切斷連續偵測。"
+                ],
+                concept: "多重條件與偵測"
+            },
+            {
+                title: "【畫面卡死巨獸】",
+                text: "滿天星星掉落，但遊戲越來越卡最後當機了！你發現「當分身產生」的程式碼最後少了一塊積木，是哪一塊？",
+                imgQuery: "8-bit style overflowing computer memory glitch pixel art",
+                options: ["【隱藏】", "【刪除此分身】", "【停止全部】", "【清空圖像特效】"],
+                answerIndex: 1,
+                hints: [
+                    "Hint 1：掉到底部的星星已經沒用了，不能只把它「藏」起來。",
+                    "Hint 2：「隱藏」的星星還是會占用記憶體，累積太多就會卡當。",
+                    "解析：分身完成任務後，必須用「刪除此分身」徹底釋放資源。"
+                ],
+                concept: "分身生命週期"
+            },
+            {
+                title: "【終極黃燈考驗】",
+                text: "你完全找不到 Bug 在哪，決定呼叫 AI 教練。依據黃燈原則，你應該輸入哪一句提示詞最合適？",
+                imgQuery: "8-bit style friendly AI robot teacher pixel art",
+                options: ["請直接幫我改寫這段程式碼", "這段程式錯在哪裡？告訴我解答", "幫我寫一個完美的接星星遊戲", "【不要給答案，用問題引導我找錯誤】"],
+                answerIndex: 3,
+                hints: [
+                    "Hint 1：黃燈原則要求我們保持「學習主體性」。",
+                    "Hint 2：直接拿答案會失去自己除錯的機會與成就感。",
+                    "解析：將 AI 當作提問教練，藉由引導讓自己思考，才是最棒的互動。"
+                ],
+                concept: "AI 輔助除錯素養"
+            }
+        ];
+
+        // --- 狀態變數 ---
+        let currentQIndex = 0;
+        let playerHP = 100;
+        let enemyHP = 100;
+        let combo = 0;
+        let currentHintIndex = 0;
+        let mistakeLog = []; // 紀錄各題答錯次數
+
+        // --- DOM 元素取得 ---
+        const sStart = document.getElementById('screen-start');
+        const sBattle = document.getElementById('screen-battle');
+        const sResult = document.getElementById('screen-result');
+        const scaffoldArea = document.getElementById('scaffold-area');
+        const optionsGrid = document.getElementById('options-grid');
+
+        // --- 音效引擎 (Web Audio API) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playTone(freq, type, duration) {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
+            osc.stop(audioCtx.currentTime + duration);
+        }
+        function soundHit() { playTone(150, 'sawtooth', 0.2); setTimeout(()=>playTone(100, 'square', 0.2), 100); }
+        function soundCorrect() { playTone(600, 'square', 0.1); setTimeout(()=>playTone(800, 'square', 0.15), 100); }
+        function soundWrong() { playTone(200, 'sawtooth', 0.3); }
+
+        // --- 核心邏輯函數 ---
+        function startGame() {
+            // 切換畫面：嚴格使用 style.display
+            sStart.style.display = 'none';
+            sBattle.style.display = 'flex';
+            
+            playerHP = 100;
+            enemyHP = 100;
+            currentQIndex = 0;
+            combo = 0;
+            mistakeLog = questions.map(() => 0);
+            updateHUD();
+            loadQuestion();
+        }
+
+        function loadQuestion() {
+            if (currentQIndex >= questions.length) {
+                endGame(true);
+                return;
+            }
+            const q = questions[currentQIndex];
+            document.getElementById('stage-count').innerText = currentQIndex + 1;
+            document.getElementById('question-title').innerText = q.title;
+            document.getElementById('question-text').innerText = q.text;
+            
+            // 生成動態 AI 圖片 (利用 Pollinations)
+            const safeQuery = encodeURIComponent(q.imgQuery);
+            document.getElementById('scene-image').src = `https://image.pollinations.ai/prompt/${safeQuery}?width=600&height=400&nologo=true`;
+            
+            // 繪製選項
+            optionsGrid.style.display = 'grid';
+            scaffoldArea.style.display = 'none';
+            optionsGrid.innerHTML = '';
+            
+            q.options.forEach((optText, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'pixel-btn pixel-btn-blue text-sm md:text-base font-bold py-4 px-3 rounded flex items-center justify-center min-h-[80px] hover:bg-blue-700';
+                btn.innerText = optText;
+                btn.onclick = () => checkAnswer(index);
+                optionsGrid.appendChild(btn);
+            });
+        }
+
+        function updateHUD() {
+            document.getElementById('player-hp-bar').style.width = `${Math.max(0, playerHP)}%`;
+            document.getElementById('enemy-hp-bar').style.width = `${Math.max(0, enemyHP)}%`;
+            document.getElementById('combo-count').innerText = combo;
+        }
+
+        function checkAnswer(selectedIndex) {
+            const q = questions[currentQIndex];
+            if (selectedIndex === q.answerIndex) {
+                // 答對邏輯
+                soundCorrect();
+                combo++;
+                let damage = 25 + (combo * 5); // 連擊加成
+                enemyHP -= damage;
+                
+                // 動畫處理
+                const enemySprite = document.getElementById('enemy-sprite');
+                enemySprite.classList.add('damage-anim');
+                setTimeout(() => enemySprite.classList.remove('damage-anim'), 300);
+                
+                updateHUD();
+                
+                if (enemyHP <= 0) {
+                    setTimeout(() => endGame(true), 500);
+                } else {
+                    currentQIndex++;
+                    setTimeout(loadQuestion, 500);
+                }
+            } else {
+                // 答錯邏輯
+                soundWrong();
+                combo = 0;
+                playerHP -= 20;
+                mistakeLog[currentQIndex]++;
+                updateHUD();
+                
+                const playerSprite = document.getElementById('player-sprite');
+                playerSprite.classList.add('damage-anim');
+                setTimeout(() => playerSprite.classList.remove('damage-anim'), 300);
+
+                if (playerHP <= 0) {
+                    setTimeout(() => endGame(false), 500);
+                } else {
+                    triggerScaffolding();
+                }
+            }
+        }
+
+        // --- 鷹架提示邏輯 ---
+        function triggerScaffolding() {
+            optionsGrid.style.display = 'none';
+            scaffoldArea.style.display = 'block';
+            currentHintIndex = 0;
+            updateHintUI();
+        }
+
+        function updateHintUI() {
+            const hints = questions[currentQIndex].hints;
+            document.getElementById('hint-text').innerText = hints[currentHintIndex];
+            
+            if (currentHintIndex < hints.length - 1) {
+                document.getElementById('btn-next-hint').style.display = 'inline-block';
+                document.getElementById('btn-retry').style.display = 'none';
+            } else {
+                document.getElementById('btn-next-hint').style.display = 'none';
+                document.getElementById('btn-retry').style.display = 'inline-block';
+            }
+        }
+
+        function showNextHint() {
+            currentHintIndex++;
+            updateHintUI();
+        }
+
+        function closeScaffold() {
+            scaffoldArea.style.display = 'none';
+            optionsGrid.style.display = 'grid';
+        }
+
+        // --- 結算邏輯 ---
+        function endGame(isVictory) {
+            sBattle.style.display = 'none';
+            sResult.style.display = 'block';
+            
+            const titleObj = document.getElementById('result-title');
+            const descObj = document.getElementById('result-desc');
+            const reportList = document.getElementById('report-list');
+            
+            if (isVictory) {
+                titleObj.innerText = "VICTORY!";
+                titleObj.className = "text-4xl font-pixel mb-6 text-green-600";
+                descObj.innerText = "太棒了！你成功除錯並擊敗了 Bug 魔王！";
+                soundCorrect(); setTimeout(soundCorrect, 200); setTimeout(soundCorrect, 400);
+            } else {
+                titleObj.innerText = "GAME OVER";
+                titleObj.className = "text-4xl font-pixel mb-6 text-red-600";
+                descObj.innerText = "勇者倒下了，Bug 依然肆虐，請回顧錯誤重新挑戰。";
+            }
+
+            // 產生知識點診斷報告
+            reportList.innerHTML = '';
+            questions.forEach((q, idx) => {
+                const mistakes = mistakeLog[idx];
+                const status = mistakes === 0 ? "🟢 精熟" : (mistakes === 1 ? "🟡 需留意" : "🔴 待加強");
+                const li = document.createElement('li');
+                li.className = "border-b border-gray-200 pb-2";
+                li.innerHTML = `${status} - <strong>${q.concept}</strong> (錯誤次數: ${mistakes})`;
+                reportList.appendChild(li);
+            });
+        }
+    </script>
+</body>
+</html>
